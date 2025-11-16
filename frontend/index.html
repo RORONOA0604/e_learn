@@ -1,33 +1,74 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <title>AI E-Learning Quiz</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI E-Learn — Personalized Roadmaps</title>
+  <!-- Tailwind CDN (Play CDN for quick prototypes) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Tailwind config for custom colors (optional)
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#0f172a',
+            accent: '#06b6d4'
+          }
+        }
+      }
+    }
+  </script>
   <style>
-    body { font-family: Inter, system-ui, Arial; max-width: 900px; margin: 24px auto; padding: 12px; }
-    .q { margin-bottom: 18px; padding: 12px; border-radius: 8px; background:#f7f7f7; }
-    button { padding: 10px 16px; border-radius: 8px; cursor: pointer; }
-    textarea { width: 100%; min-height: 80px; }
-    pre { white-space: pre-wrap; word-wrap: break-word; background: #eee; padding: 1em; border-radius: 8px; }
-    nav a { margin-right: 12px; }
+    /* small extra styles */
+    html,body,#app { height: 100%; }
+    .glass { background: rgba(255,255,255,0.04); backdrop-filter: blur(6px); }
+    pre { white-space: pre-wrap; word-break: break-word; }
   </style>
 </head>
-<body>
-  <h1>Quick Skills Assessment</h1>
-  <p>Answer the short quiz to get a personalized AI-generated learning roadmap.</p>
-  <p><nav><a href="/static/dashboard.html">Go to Dashboard</a> | <a href="/static/login.html" onclick="localStorage.removeItem('token')">Logout</a></nav></p>
+<body class="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 text-slate-100">
+  <div id="app" class="min-h-screen flex flex-col">
+    <!-- top nav -->
+    <nav class="flex items-center justify-between px-6 py-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-accent to-indigo-500 flex items-center justify-center shadow-lg">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2" />
+          </svg>
+        </div>
+        <span class="font-semibold text-lg">AI E-Learn</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="#/" class="nav-link px-3 py-2 rounded hover:bg-white/5">Home</a>
+        <a href="#/quiz" class="nav-link px-3 py-2 rounded hover:bg-white/5">Take Quiz</a>
+        <a href="#/dashboard" class="nav-link px-3 py-2 rounded hover:bg-white/5">Dashboard</a>
+        <button id="nav-auth" class="ml-2 px-4 py-2 rounded bg-accent text-slate-900 font-semibold hover:brightness-110">Login</button>
+      </div>
+    </nav>
 
-  <div id="quiz"></div>
+    <!-- main content container -->
+    <main id="main" class="flex-1 px-6 py-8 max-w-6xl mx-auto w-full"></main>
 
-  <button id="submitBtn">Submit & Generate Roadmap</button>
-
-  <hr/>
-  <h2>Result</h2>
-  <pre id="result">No result yet.</pre>
+    <footer class="text-center text-sm text-slate-400 py-6">© <span id="year"></span> AI E-Learn — Built with ❤️ & Tailwind</footer>
+  </div>
 
 <script>
-// Full QUESTIONS JSON (embedded)
+/* Single-file SPA that contains:
+   - Landing page
+   - Login / Register
+   - Quiz (uses embedded QUESTIONS)
+   - Results & Roadmap view
+   - Dashboard
+
+   It talks to the backend endpoints provided by your FastAPI app:
+     POST /api/register
+     POST /api/login
+     POST /api/submit (Authorization: Bearer <token>)
+     POST /api/feedback (Authorization)
+     GET  /api/dashboard (Authorization)
+*/
+
+// Embedded QUESTIONS same as backend
 const QUESTIONS = [
     { "question": "Which of the following best describes a 'for' loop?",
       "options": ["A conditional statement", "A way to store multiple values", "A control flow statement for iterating", "A function that calls itself"],
@@ -76,109 +117,347 @@ const QUESTIONS = [
       "scores": [1,1,10,1]}
 ];
 
-function renderQuiz(){
-  const container = document.getElementById('quiz');
-  container.innerHTML = '';
-  QUESTIONS.forEach((q, i) => {
-    const div = document.createElement('div');
-    div.className = 'q';
-    const title = document.createElement('div');
-    title.innerHTML = `<strong>Q${i+1}.</strong> ${q.question}`;
-    div.appendChild(title);
-    q.options.forEach((opt, j) => {
-      const label = document.createElement('label');
-      label.style.display = 'block';
-      const is_checked = j === 0 ? 'checked' : '';
-      label.innerHTML = `<input type="radio" name="q${i}" value="${j}" ${is_checked} /> ${opt}`;
-      div.appendChild(label);
-    });
-    container.appendChild(div);
+// small helpers
+const el = (sel) => document.querySelector(sel);
+const api = (path, opts={}) => fetch(path, opts);
+const setYear = () => el('#year').textContent = new Date().getFullYear();
+setYear();
+
+// Router
+function route() {
+  const hash = location.hash.replace('#','') || '/';
+  if (hash.startsWith('/login')) return renderLogin();
+  if (hash.startsWith('/quiz')) return renderQuiz();
+  if (hash.startsWith('/dashboard')) return renderDashboard();
+  return renderLanding();
+}
+window.addEventListener('hashchange', route);
+
+// nav auth button
+function updateNavAuth() {
+  const token = localStorage.getItem('token');
+  const btn = el('#nav-auth');
+  if (token) {
+    btn.textContent = 'Dashboard';
+    btn.onclick = () => location.hash = '#/dashboard';
+  } else {
+    btn.textContent = 'Login';
+    btn.onclick = () => location.hash = '#/login';
+  }
+}
+updateNavAuth();
+
+// Nice UI components
+function makeCard(title, bodyHtml=''){
+  return `\n    <div class=\"bg-white/5 border border-white/5 rounded-xl p-6 shadow-lg\">\n      <h3 class=\"text-xl font-semibold mb-2\">${title}</h3>\n      <div class=\"text-slate-300 text-sm\">${bodyHtml}</div>\n    </div>\n  `;
+}
+
+// ---------- Landing ----------
+function renderLanding(){
+  updateNavAuth();
+  const main = el('#main');
+  main.innerHTML = `
+    <section class="grid md:grid-cols-2 gap-8 items-center">
+      <div>
+        <h1 class="text-4xl font-extrabold leading-tight">AI-powered learning roadmaps<br/><span class="text-accent">Personalized</span> for every learner</h1>
+        <p class="mt-4 text-slate-300">Take a quick skills assessment and get a 6-week AI-generated roadmap, practice tasks, and curated resources. Track progress on your dashboard.</p>
+        <div class="mt-6 flex gap-3">
+          <a href="#/quiz" class="inline-block px-6 py-3 bg-accent text-slate-900 rounded-lg font-semibold shadow hover:scale-105 transition">Take the Quiz</a>
+          <a href="#/login" class="inline-block px-6 py-3 border border-white/10 rounded-lg text-slate-100 hover:bg-white/5 transition">Login / Register</a>
+        </div>
+        <div class="mt-8 grid grid-cols-2 gap-3">
+          ${makeCard('Fast results', '15 questions — finish in ~5 minutes and get a tailored plan.')}
+          ${makeCard('AI-generated', 'Gemini-powered prompts (or a heuristic fallback for offline use).')}
+        </div>
+      </div>
+      <div class="p-6">
+        <div class="rounded-2xl bg-gradient-to-br from-white/5 to-white/3 p-6 glass">
+          <h4 class="text-lg font-semibold">Sample Roadmap Preview</h4>
+          <ol class="mt-3 text-sm text-slate-300 space-y-2">
+            <li><strong>Week 1:</strong> Refresh loops & functions — 20 min daily tasks.</li>
+            <li><strong>Week 2:</strong> Data structures — hands-on list/dict practice.</li>
+            <li><strong>Week 3:</strong> Probability basics — small exercises.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold">Why AI E-Learn?</h2>
+      <div class="mt-6 grid md:grid-cols-3 gap-6">
+        <div class="p-6 bg-white/5 rounded-lg"> <h3 class="font-semibold">Personalized</h3><p class="text-sm text-slate-300 mt-2">Roadmaps adapt to your answers and strengths.</p></div>
+        <div class="p-6 bg-white/5 rounded-lg"> <h3 class="font-semibold">Practical</h3><p class="text-sm text-slate-300 mt-2">Real tasks, not just theory.</p></div>
+        <div class="p-6 bg-white/5 rounded-lg"> <h3 class="font-semibold">Trackable</h3><p class="text-sm text-slate-300 mt-2">Dashboard keeps your attempts and feedback.</p></div>
+      </div>
+    </section>
+  `;
+}
+
+// ---------- Login / Register ----------
+function renderLogin(){
+  updateNavAuth();
+  const main = el('#main');
+  main.innerHTML = `
+    <div class="max-w-2xl mx-auto bg-white/5 rounded-2xl p-8">
+      <h2 class="text-2xl font-semibold mb-4">Sign in or create an account</h2>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <h4 class="font-semibold">Register</h4>
+          <input id="reg_name" class="mt-2 w-full p-3 rounded bg-white/3" placeholder="Full name" />
+          <input id="reg_email" class="mt-2 w-full p-3 rounded bg-white/3" placeholder="Email" />
+          <input id="reg_pass" type="password" class="mt-2 w-full p-3 rounded bg-white/3" placeholder="Password" />
+          <button id="reg_btn" class="mt-3 px-4 py-2 bg-accent rounded font-semibold text-slate-900">Create account</button>
+        </div>
+        <div>
+          <h4 class="font-semibold">Login</h4>
+          <input id="log_email" class="mt-2 w-full p-3 rounded bg-white/3" placeholder="Email" />
+          <input id="log_pass" type="password" class="mt-2 w-full p-3 rounded bg-white/3" placeholder="Password" />
+          <button id="log_btn" class="mt-3 px-4 py-2 bg-white/6 rounded font-semibold">Sign in</button>
+        </div>
+      </div>
+      <div id="auth-msg" class="mt-3 text-sm text-rose-400"></div>
+    </div>
+  `;
+
+  // handlers
+  el('#reg_btn').addEventListener('click', async ()=>{
+    const name = el('#reg_name').value.trim();
+    const email = el('#reg_email').value.trim();
+    const pass = el('#reg_pass').value;
+    if (!name||!email||!pass){ el('#auth-msg').textContent = 'Fill all fields to register.'; return; }
+    try {
+      const res = await fetch('/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, email, password: pass}) });
+      const data = await res.json();
+      if (!res.ok) { el('#auth-msg').textContent = data.detail || JSON.stringify(data); return; }
+      localStorage.setItem('token', data.access_token);
+      updateNavAuth();
+      location.hash = '#/quiz';
+    } catch (e){ el('#auth-msg').textContent = 'Network error'; }
+  });
+
+  el('#log_btn').addEventListener('click', async ()=>{
+    const email = el('#log_email').value.trim();
+    const pass = el('#log_pass').value;
+    if (!email||!pass){ el('#auth-msg').textContent = 'Fill email & password.'; return; }
+    try {
+      const res = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, password: pass}) });
+      const data = await res.json();
+      if (!res.ok) { el('#auth-msg').textContent = data.detail || JSON.stringify(data); return; }
+      localStorage.setItem('token', data.access_token);
+      updateNavAuth();
+      location.hash = '#/quiz';
+    } catch (e){ el('#auth-msg').textContent = 'Network error'; }
   });
 }
 
-function collectAnswers(){
-  const answers = [];
-  for(let i=0;i<QUESTIONS.length;i++){
-    const radios = document.getElementsByName(`q${i}`);
-    let chosen = 0;
-    for(const r of radios){
-      if(r.checked){ chosen = parseInt(r.value); break; }
+// ---------- Quiz ----------
+function renderQuiz(){
+  updateNavAuth();
+  const main = el('#main');
+  // build quiz
+  let html = `
+    <div class="max-w-4xl mx-auto bg-white/5 rounded-2xl p-6">
+      <div class="flex items-center justify-between">
+        <h2 class="text-2xl font-semibold">Skills Assessment</h2>
+        <div class="text-sm text-slate-300">15 questions — ~5 minutes</div>
+      </div>
+      <form id="quiz-form" class="mt-4 space-y-4">
+  `;
+  QUESTIONS.forEach((q,i)=>{
+    html += `
+      <div class="p-4 bg-white/3 rounded-lg">
+        <div class="font-medium">Q${i+1}. ${q.question}</div>
+        <div class="mt-2 grid md:grid-cols-2 gap-2">
+    `;
+    q.options.forEach((opt,j)=>{
+      html += `<label class="p-2 rounded border border-white/5 cursor-pointer hover:bg-white/5 flex items-center gap-3"><input type="radio" name="q${i}" value="${j}" ${j===0? 'checked':''}/> <span>${opt}</span></label>`;
+    });
+    html += `</div></div>`;
+  });
+  html += `
+      <div class="flex items-center gap-3 mt-4">
+        <button id="submitQuiz" type="button" class="px-5 py-3 bg-accent text-slate-900 rounded font-semibold">Submit & Get Roadmap</button>
+        <button id="resetQuiz" type="button" class="px-4 py-2 border rounded">Reset</button>
+        <div id="quiz-msg" class="text-sm text-rose-400 ml-4"></div>
+      </div>
+      </form>
+    </div>
+  `;
+  main.innerHTML = html;
+
+  el('#resetQuiz').addEventListener('click', ()=>{ document.getElementById('quiz-form').reset(); });
+
+  el('#submitQuiz').addEventListener('click', async ()=>{
+    const token = localStorage.getItem('token');
+    if(!token){ location.hash = '#/login'; return; }
+    // collect answers
+    const answers = [];
+    for (let i=0;i<QUESTIONS.length;i++){
+      const v = document.querySelector(`input[name=q${i}]:checked`);
+      answers.push(parseInt(v?.value ?? 0));
     }
-    answers.push(chosen);
-  }
-  return answers;
+    // submit
+    el('#quiz-msg').textContent = 'Submitting...';
+    try {
+      const res = await fetch('/api/submit', { method:'POST', headers: { 'Content-Type':'application/json', 'Authorization': 'Bearer '+token }, body: JSON.stringify({answers}) });
+      const text = await res.text();
+      let data; try { data = JSON.parse(text); } catch(e){ throw new Error('Server error: '+text); }
+      if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+      // show results page with roadmap
+      renderResults(data);
+    } catch (err) {
+      el('#quiz-msg').textContent = err.message || 'Submission failed';
+    }
+  });
 }
 
-document.getElementById('submitBtn').addEventListener('click', async () => {
+// ---------- Results & Roadmap ----------
+function renderResults(data){
+  updateNavAuth();
+  const main = el('#main');
+  let html = `
+    <div class="max-w-4xl mx-auto space-y-6">
+      <div class="p-6 rounded-xl bg-white/5">
+        <h2 class="text-2xl font-semibold">Your Results</h2>
+        <p class="text-slate-300 mt-2">Total score: <strong class="text-accent">${data.total_score}</strong></p>
+      </div>
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="p-6 rounded-xl bg-white/5">
+          <h3 class="font-semibold">Per-question feedback</h3>
+          <div class="mt-3 space-y-3 text-sm text-slate-200">
+  `;
+  data.per_question.forEach((pq, idx)=>{
+    html += `<div class="p-3 rounded border border-white/5 ${pq.is_correct? 'bg-green-900/10':'bg-rose-900/8'}">
+        <div class="font-medium">Q${idx+1}. ${pq.question}</div>
+        <div class="text-sm mt-1">You chose: <strong>${pq.chosen_text}</strong> (${pq.score_for_choice})</div>
+        <div class="text-sm">Correct answer: <strong>${pq.correct_text}</strong></div>
+      </div>`;
+  });
+  html += `</div></div>`;
+
+  // roadmap column
+  html += `
+    <div class="p-6 rounded-xl bg-white/5">
+      <h3 class="font-semibold">AI-generated roadmap</h3>
+      <div class="mt-3 text-sm text-slate-200">
+        <pre id="roadmap-pre">${JSON.stringify(data.roadmap, null, 2)}</pre>
+      </div>
+      <div class="mt-4 flex gap-3">
+        <button id="saveFeedback" class="px-4 py-2 bg-accent text-slate-900 rounded font-semibold">Give Feedback</button>
+        <button id="toDashboard" class="px-4 py-2 border rounded">Go to Dashboard</button>
+      </div>
+    </div>`;
+
+  html += `</div></div>`;
+  main.innerHTML = html;
+
+  el('#toDashboard').addEventListener('click', ()=> location.hash = '#/dashboard');
+  el('#saveFeedback').addEventListener('click', ()=> showFeedbackForm(data.result_id));
+}
+
+function showFeedbackForm(result_id){
+  // modal-like simple prompt
+  const container = document.createElement('div');
+  container.className = 'fixed inset-0 flex items-center justify-center z-50';
+  container.innerHTML = `
+    <div class="bg-black/60 absolute inset-0"></div>
+    <div class="relative bg-white/5 p-6 rounded-xl w-[90%] max-w-md">
+      <h4 class="font-semibold">Rate this roadmap</h4>
+      <div class="mt-3">
+        <label class="block text-sm">Rating (1-5)</label>
+        <input id="fb_rate_modal" type="number" min="1" max="5" value="5" class="w-full p-2 rounded bg-white/3 mt-1" />
+      </div>
+      <div class="mt-3">
+        <label class="block text-sm">Comment</label>
+        <textarea id="fb_comment_modal" class="w-full p-2 rounded bg-white/3 mt-1"></textarea>
+      </div>
+      <div class="mt-4 flex justify-end gap-2">
+        <button id="fb_cancel" class="px-4 py-2 border rounded">Cancel</button>
+        <button id="fb_send" class="px-4 py-2 bg-accent text-slate-900 rounded font-semibold">Send</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(container);
+  container.querySelector('#fb_cancel').addEventListener('click', ()=> container.remove());
+  container.querySelector('#fb_send').addEventListener('click', async ()=>{
+    const rating = parseInt(container.querySelector('#fb_rate_modal').value || '5');
+    const comment = container.querySelector('#fb_comment_modal').value || '';
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch('/api/feedback', { method:'POST', headers: { 'Content-Type':'application/json', 'Authorization': 'Bearer '+token }, body: JSON.stringify({result_id, rating, comment}) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+      alert('Thanks for the feedback!');
+      container.remove();
+    } catch (err){ alert('Feedback failed: '+ (err.message||err)); }
+  });
+}
+
+// ---------- Dashboard ----------
+async function renderDashboard(){
+  updateNavAuth();
+  const main = el('#main');
+  main.innerHTML = `<div class="flex items-center justify-center py-10"><div class="text-slate-400">Loading dashboard...</div></div>`;
   const token = localStorage.getItem('token');
-  if(!token){
-    window.location.href = '/static/login.html';
-    return;
-  }
-  const answers = collectAnswers();
-  const payload = { answers };
-  document.getElementById('result').textContent = 'Submitting...';
+  if (!token){ location.hash = '#/login'; return; }
   try {
-    const r = await fetch('/api/submit', {
-      method: 'POST',
-      headers: {
-        'Content-Type':'application/json',
-        'Authorization': 'Bearer ' + token
-      },
-      body: JSON.stringify(payload)
-    });
-    const text = await r.text();
-    let data;
-    try { data = JSON.parse(text); } catch { throw new Error('Server returned non JSON: ' + text); }
-    if (!r.ok) throw new Error(data.detail || JSON.stringify(data));
-    let out = `Total score: ${data.total_score}\n\n--- Per Question Feedback ---\n\n`;
-    data.per_question.forEach((pq, idx) => {
-      out += `Q${idx+1}. ${pq.question}\n`;
-      out += ` - You chose: ${pq.chosen_text} (Score: ${pq.score_for_choice})\n`;
-      out += ` - Correct: ${pq.correct_text}\n`;
-      out += ` - Result: ${pq.is_correct ? 'Correct' : 'Incorrect'}\n\n`;
-    });
-    out += '\n--- AI-Generated Roadmap ---\n' + JSON.stringify(data.roadmap, null, 2);
-    document.getElementById('result').textContent = out;
-
-    const oldFbDiv = document.getElementById('feedback-form');
-    if (oldFbDiv) oldFbDiv.remove();
-    const fbDiv = document.createElement('div');
-    fbDiv.id = 'feedback-form';
-    fbDiv.innerHTML = `
-      <h3>Give feedback on this roadmap</h3>
-      <label>Rating (1-5): <input id="fb_rating" type="number" min="1" max="5" value="5"/></label><br/>
-      <textarea id="fb_comment" placeholder="Comments (optional)"></textarea><br/>
-      <button id="fb_submit">Submit Feedback</button>
+    const res = await fetch('/api/dashboard', { headers: { 'Authorization': 'Bearer '+token } });
+    const data = await res.json();
+    if (!res.ok) { throw new Error(data.detail || JSON.stringify(data)); }
+    // render
+    let html = `
+      <div class="max-w-5xl mx-auto space-y-6">
+        <div class="p-6 rounded-xl bg-white/5 flex items-center justify-between">
+          <div>
+            <h3 class="font-semibold text-lg">Welcome, ${data.user.name}</h3>
+            <div class="text-sm text-slate-300">${data.user.email}</div>
+          </div>
+          <div>
+            <button id="logoutBtn" class="px-4 py-2 border rounded">Logout</button>
+          </div>
+        </div>
+        <div class="grid md:grid-cols-2 gap-6">
+          <div class="p-6 bg-white/5 rounded-xl">
+            <h4 class="font-semibold">Recent attempts</h4>
+            <div class="mt-3 space-y-3">
+              ${data.results.length? data.results.map(r => `
+                <div class="p-3 rounded border border-white/5">
+                  <div class="text-sm text-slate-300">${r.created_at}</div>
+                  <div class="font-medium">Score: <span class="text-accent">${r.score}</span></div>
+                  <details class="mt-2 text-sm"><summary class="cursor-pointer">View roadmap</summary>
+                    <pre class="mt-2 text-xs text-slate-200 p-2 rounded bg-black/20">${escapeHtml(JSON.stringify(r.roadmap, null, 2))}</pre>
+                  </details>
+                </div>
+              `).join('') : '<div class="text-sm text-slate-400">No attempts yet.</div>'}
+            </div>
+          </div>
+          <div class="p-6 bg-white/5 rounded-xl">
+            <h4 class="font-semibold">Feedback you gave</h4>
+            <div class="mt-3 space-y-3">
+              ${data.feedbacks.length? data.feedbacks.map(f => `
+                <div class="p-3 rounded border border-white/5">
+                  <div class="text-sm text-slate-300">${f.created_at}</div>
+                  <div>Rating: <strong>${f.rating}</strong></div>
+                  <div class="text-sm mt-1">${f.comment||''}</div>
+                </div>
+              `).join('') : '<div class="text-sm text-slate-400">No feedback yet.</div>'}
+            </div>
+          </div>
+        </div>
+      </div>
     `;
-    document.getElementById('result').after(fbDiv);
-
-    document.getElementById('fb_submit').addEventListener('click', async () =>{
-      const rating = parseInt(document.getElementById('fb_rating').value);
-      const comment = document.getElementById('fb_comment').value;
-      try {
-        const fbRes = await fetch('/api/feedback', {
-          method:'POST',
-          headers: {'Content-Type':'application/json', 'Authorization':'Bearer '+token},
-          body: JSON.stringify({ result_id: data.result_id, rating, comment })
-        });
-        if (!fbRes.ok) {
-          const t = await fbRes.text();
-          throw new Error('Feedback error: ' + t);
-        }
-        alert('Thanks for your feedback!');
-        fbDiv.remove();
-      } catch (fbErr) {
-        alert('Error submitting feedback: ' + fbErr.message);
-      }
-    });
-
-  } catch(err){
-    document.getElementById('result').textContent = 'Error: ' + (err.message || err);
+    main.innerHTML = html;
+    el('#logoutBtn').addEventListener('click', ()=>{ localStorage.removeItem('token'); updateNavAuth(); location.hash = '#/'; });
+  } catch (err) {
+    main.innerHTML = `<div class="text-rose-400">Could not load dashboard: ${err.message||err}</div>`;
   }
-});
+}
 
-(function init(){ renderQuiz(); })();
+// small util to safely escape HTML for showing JSON inside pre
+function escapeHtml(str){ return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// initial route
+route();
 </script>
 </body>
 </html>
