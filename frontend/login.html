@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"/><title>Login</title></head>
+<body>
+  <h2>Sign in / Register</h2>
+  <div>
+    <h3>Register</h3>
+    <input id="reg_name" placeholder="Name"/><br/>
+    <input id="reg_email" placeholder="Email"/><br/>
+    <input id="reg_pass" placeholder="Password" type="password"/><br/>
+    <button id="reg_btn">Register</button>
+  </div>
+  <hr/>
+  <div>
+    <h3>Login</h3>
+    <input id="log_email" placeholder="Email"/><br/>
+    <input id="log_pass" placeholder="Password" type="password"/><br/>
+    <button id="log_btn">Login</button>
+  </div>
+  <script>
+    async function post(url, data){
+      const res = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+      return res.json();
+    }
+    document.getElementById('reg_btn').addEventListener('click', async ()=>{
+      const name = document.getElementById('reg_name').value;
+      const email = document.getElementById('reg_email').value;
+      const pass = document.getElementById('reg_pass').value;
+      const r = await post('/api/register',{name, email, password: pass});
+      if(r.access_token){
+        localStorage.setItem('token', r.access_token);
+        window.location.href = '/';
+      } else alert(JSON.stringify(r));
+    });
+    document.getElementById('log_btn').addEventListener('click', async ()=>{
+      const email = document.getElementById('log_email').value;
+      const pass = document.getElementById('log_pass').value;
+      const r = await post('/api/login',{email, password: pass});
+      if(r.access_token){
+        localStorage.setItem('token', r.access_token);
+        window.location.href = '/';
+      } else alert(JSON.stringify(r));
+    });
+  </script>
+</body>
+</html>

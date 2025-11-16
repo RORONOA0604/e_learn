@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"/><title>Dashboard</title></head>
+<body>
+  <h2>Dashboard</h2>
+  <div id="profile"></div>
+  <h3>Past Attempts</h3>
+  <div id="attempts"></div>
+  <h3>Your Feedbacks</h3>
+  <div id="fb"></div>
+  <button id="logout">Logout</button>
+<script>
+async function getJSON(url){
+  const token = localStorage.getItem('token');
+  if(!token){ location.href = '/static/login.html'; return; }
+  const r = await fetch(url, {headers: { 'Authorization': 'Bearer ' + token }});
+  if (!r.ok) {
+    const text = await r.text();
+    alert('Error: ' + text);
+    return null;
+  }
+  return r.json();
+}
+(async function load(){
+  const d = await getJSON('/api/dashboard');
+  if(!d) return;
+  document.getElementById('profile').innerText = `User: ${d.user.name} (${d.user.email})`;
+  document.getElementById('attempts').innerHTML = d.results.map(r => `<div style="border:1px solid #ddd;padding:8px;margin:8px 0;">
+    <strong>${r.created_at}</strong> — score: ${r.score} <pre>${JSON.stringify(r.roadmap, null, 2)}</pre>
+  </div>`).join('') || 'No attempts yet.';
+  document.getElementById('fb').innerHTML = d.feedbacks.map(f => `<div style="border:1px solid #eee;padding:6px;margin:6px 0;">${f.created_at} — rating: ${f.rating}<br/>${f.comment||''}</div>`).join('') || 'No feedbacks yet.';
+})();
+document.getElementById('logout').addEventListener('click', ()=>{ localStorage.removeItem('token'); location.href='/static/login.html'; });
+</script>
+</body>
+</html>

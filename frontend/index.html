@@ -1,0 +1,184 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>AI E-Learning Quiz</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <style>
+    body { font-family: Inter, system-ui, Arial; max-width: 900px; margin: 24px auto; padding: 12px; }
+    .q { margin-bottom: 18px; padding: 12px; border-radius: 8px; background:#f7f7f7; }
+    button { padding: 10px 16px; border-radius: 8px; cursor: pointer; }
+    textarea { width: 100%; min-height: 80px; }
+    pre { white-space: pre-wrap; word-wrap: break-word; background: #eee; padding: 1em; border-radius: 8px; }
+    nav a { margin-right: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Quick Skills Assessment</h1>
+  <p>Answer the short quiz to get a personalized AI-generated learning roadmap.</p>
+  <p><nav><a href="/static/dashboard.html">Go to Dashboard</a> | <a href="/static/login.html" onclick="localStorage.removeItem('token')">Logout</a></nav></p>
+
+  <div id="quiz"></div>
+
+  <button id="submitBtn">Submit & Generate Roadmap</button>
+
+  <hr/>
+  <h2>Result</h2>
+  <pre id="result">No result yet.</pre>
+
+<script>
+// Full QUESTIONS JSON (embedded)
+const QUESTIONS = [
+    { "question": "Which of the following best describes a 'for' loop?",
+      "options": ["A conditional statement", "A way to store multiple values", "A control flow statement for iterating", "A function that calls itself"],
+      "scores": [2,3,10,1]},
+    { "question": "How would you efficiently create a new list of only even numbers from an existing list?",
+      "options": ["Series of 'if-else' statements", "A loop that checks each number", "A function for every possible number", "Store numbers in separate variables"],
+      "scores": [3,10,1,2]},
+    { "question": "What is the primary purpose of a function in programming?",
+      "options": ["To stop the program", "To store data", "To group reusable code", "To create comments"],
+      "scores": [1,3,10,2]},
+    { "question": "If a coin is flipped twice, what is the probability of getting two heads?",
+      "options": ["1/2", "1/3", "1/4", "1"],
+      "scores": [3,2,10,1]},
+    { "question": "What does the 'mean' of a dataset represent?",
+      "options": ["The middle value", "The most frequent value", "The average of all values", "The range of values"],
+      "scores": [4,3,10,2]},
+    { "question": "An upward trend in a graph where both variables increase together is called:",
+      "options": ["Negative correlation", "Positive correlation", "No correlation", "A statistical error"],
+      "scores": [1,10,2,1]},
+    { "question": "What is the role of a server in a client-server relationship?",
+      "options": ["To request information", "To provide resources or services", "The user's main computer", "To protect from viruses"],
+      "scores": [3,10,2,4]},
+    { "question": "Which of the following best describes 'the cloud'?",
+      "options": ["A single, massive computer", "A network of servers accessed via internet", "A personal storage device", "Software for documents"],
+      "scores": [2,10,1,1]},
+    { "question": "What is an API (Application Programming Interface)?",
+      "options": ["A visual user interface", "A set of rules for app communication", "A database for storage", "A security protocol"],
+      "scores": [3,10,2,4]},
+    { "question": "When designing a website, what is the most important consideration?",
+      "options": ["Using many colors", "Intuitive user navigation", "Complex animations", "Smallest font size"],
+      "scores": [2,10,1,1]},
+    { "question": "What's the best way to create visual hierarchy on a poster?",
+      "options": ["Make all text the same", "Make important info larger/bolder", "Put least important info at top", "Fill every empty space"],
+      "scores": [1,10,1,2]},
+    { "question": "What is the primary goal of UX (User Experience) design?",
+      "options": ["Making a product look appealing", "Focusing on branding/logo", "Enhancing usability and accessibility", "Writing the application code"],
+      "scores": [4,2,10,1]},
+    { "question": "What's a constructive way to handle disagreement with a teammate?",
+      "options": ["Ignore their idea", "Publicly criticize them", "Discuss pros and cons together", "Complain to someone else"],
+      "scores": [1,1,10,1]},
+    { "question": "What is the main purpose of version control software like Git?",
+      "options": ["To write code automatically", "To track changes and manage collaboration", "To design the UI", "To store only the final version"],
+      "scores": [1,10,1,2]},
+    { "question": "When presenting to stakeholders, it's most important to:",
+      "options": ["Use highly technical jargon", "Focus only on what went wrong", "Clearly communicate progress and challenges", "Make the presentation as long as possible"],
+      "scores": [1,1,10,1]}
+];
+
+function renderQuiz(){
+  const container = document.getElementById('quiz');
+  container.innerHTML = '';
+  QUESTIONS.forEach((q, i) => {
+    const div = document.createElement('div');
+    div.className = 'q';
+    const title = document.createElement('div');
+    title.innerHTML = `<strong>Q${i+1}.</strong> ${q.question}`;
+    div.appendChild(title);
+    q.options.forEach((opt, j) => {
+      const label = document.createElement('label');
+      label.style.display = 'block';
+      const is_checked = j === 0 ? 'checked' : '';
+      label.innerHTML = `<input type="radio" name="q${i}" value="${j}" ${is_checked} /> ${opt}`;
+      div.appendChild(label);
+    });
+    container.appendChild(div);
+  });
+}
+
+function collectAnswers(){
+  const answers = [];
+  for(let i=0;i<QUESTIONS.length;i++){
+    const radios = document.getElementsByName(`q${i}`);
+    let chosen = 0;
+    for(const r of radios){
+      if(r.checked){ chosen = parseInt(r.value); break; }
+    }
+    answers.push(chosen);
+  }
+  return answers;
+}
+
+document.getElementById('submitBtn').addEventListener('click', async () => {
+  const token = localStorage.getItem('token');
+  if(!token){
+    window.location.href = '/static/login.html';
+    return;
+  }
+  const answers = collectAnswers();
+  const payload = { answers };
+  document.getElementById('result').textContent = 'Submitting...';
+  try {
+    const r = await fetch('/api/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type':'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify(payload)
+    });
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error('Server returned non JSON: ' + text); }
+    if (!r.ok) throw new Error(data.detail || JSON.stringify(data));
+    let out = `Total score: ${data.total_score}\n\n--- Per Question Feedback ---\n\n`;
+    data.per_question.forEach((pq, idx) => {
+      out += `Q${idx+1}. ${pq.question}\n`;
+      out += ` - You chose: ${pq.chosen_text} (Score: ${pq.score_for_choice})\n`;
+      out += ` - Correct: ${pq.correct_text}\n`;
+      out += ` - Result: ${pq.is_correct ? 'Correct' : 'Incorrect'}\n\n`;
+    });
+    out += '\n--- AI-Generated Roadmap ---\n' + JSON.stringify(data.roadmap, null, 2);
+    document.getElementById('result').textContent = out;
+
+    const oldFbDiv = document.getElementById('feedback-form');
+    if (oldFbDiv) oldFbDiv.remove();
+    const fbDiv = document.createElement('div');
+    fbDiv.id = 'feedback-form';
+    fbDiv.innerHTML = `
+      <h3>Give feedback on this roadmap</h3>
+      <label>Rating (1-5): <input id="fb_rating" type="number" min="1" max="5" value="5"/></label><br/>
+      <textarea id="fb_comment" placeholder="Comments (optional)"></textarea><br/>
+      <button id="fb_submit">Submit Feedback</button>
+    `;
+    document.getElementById('result').after(fbDiv);
+
+    document.getElementById('fb_submit').addEventListener('click', async () =>{
+      const rating = parseInt(document.getElementById('fb_rating').value);
+      const comment = document.getElementById('fb_comment').value;
+      try {
+        const fbRes = await fetch('/api/feedback', {
+          method:'POST',
+          headers: {'Content-Type':'application/json', 'Authorization':'Bearer '+token},
+          body: JSON.stringify({ result_id: data.result_id, rating, comment })
+        });
+        if (!fbRes.ok) {
+          const t = await fbRes.text();
+          throw new Error('Feedback error: ' + t);
+        }
+        alert('Thanks for your feedback!');
+        fbDiv.remove();
+      } catch (fbErr) {
+        alert('Error submitting feedback: ' + fbErr.message);
+      }
+    });
+
+  } catch(err){
+    document.getElementById('result').textContent = 'Error: ' + (err.message || err);
+  }
+});
+
+(function init(){ renderQuiz(); })();
+</script>
+</body>
+</html>
