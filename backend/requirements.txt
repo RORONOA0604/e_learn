@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic
+python-multipart
+xgboost
+scikit-learn
+joblib
+requests
+python-dotenv
+jinja2
+passlib[bcrypt]
+python-jose[cryptography]
+email-validator
+aiofiles
